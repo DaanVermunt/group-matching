@@ -17,6 +17,7 @@ import sys
 import time
 import argparse
 import os
+import csv
 
 # Parse arguments to fill constants
 # This is to enable SPMD processing in the future
@@ -34,10 +35,10 @@ parser.add_argument('-mchance', '--mutationchance', type=float, help="Chance of 
 parser.add_argument('-mswaps', '--mutationswaps', type=int, help="Number of group member swaps to do during each mutation (mutation aggressiveness)")
 parser.add_argument('-hof', '--numhalloffame', type=int, help="Number of individuals preserved in the hall of fame")
 parser.add_argument('-d', '--debug', action="store_true", help="Turns on debug printing")
-parser.add_argument('-nt', '--notest', action="store_true", help="Forces this out of test mode")
 parser.add_argument('-gh', '--graphhide', action="store_true", help="Do not show a summary graph at the end")
 parser.add_argument('-gd', '--graphdir', help="Indicates the directory to place graphs in")
 parser.add_argument('-r', '--rankings', help="CSV file for rankings information")
+# TODO: Add extra option for input file, i.e. personal info file
 parser.add_argument('-b', '--bruteforce', action="store_true", help="Disable genetic algorithm and use bruteforce random search instead")
 args_dict = vars(parser.parse_args())
 
@@ -64,55 +65,33 @@ HALL_OF_FAME_SIZE = args_dict['numhalloffame'] or 5
 
 # Printing params
 DEBUG = args_dict['debug'] or False
-NOTEST = args_dict['notest'] or False # Is a test by default
 GRAPHHIDE = args_dict['graphhide'] or False
 GRAPHDIR = args_dict['graphdir'] or 'graphs/'
+
+
+ranking_location = args_dict["rankings"] or "rankings.csv"
+# TODO: add default location for personal info file
 
 # Non-constants
 # Plotting params
 xs = []
 ys = []
 hall_of_fame = []
-ranking = [[NEGATIVE_WEIGHT for x in range(NUM_PARTICIPANTS)]
+
+# define ranking as all 0's
+ranking = [[0 for x in range(NUM_PARTICIPANTS)]
            for y in range(NUM_PARTICIPANTS)]
-if PARTICIPANTS_PER_GROUP == 2 and (not NOTEST):
-    # For groups of size 2
-    for i in range(NUM_PARTICIPANTS):
-        ranking[i][i] = 0 # cannot rank yourself
-        if i % 2 == 0:
-            # really want the person 'next' to you (only one "correct answer")
-            ranking[i][i + 1] = POSITIVE_WEIGHT
-        else:
-            # really want the person 'next' to you (only one "correct answer")
-            ranking[i][i - 1] = POSITIVE_WEIGHT
-elif PARTICIPANTS_PER_GROUP == 3 and (not NOTEST):
-    # For groups of size 3
-    for i in range(NUM_PARTICIPANTS):
-        ranking[i][i] = 0 # cannot rank yourself (changing this from 0 is NOT ALLOWED)
-        if i % 3 == 0:
-            ranking[i][i + 1] = POSITIVE_WEIGHT
-            ranking[i][i + 2] = POSITIVE_WEIGHT
-        elif i % 3 == 1:
-            ranking[i][i + 1] = POSITIVE_WEIGHT
-            ranking[i][i - 1] = POSITIVE_WEIGHT
-        elif i % 3 == 2:
-            ranking[i][i - 1] = POSITIVE_WEIGHT
-            ranking[i][i - 2] = POSITIVE_WEIGHT
-        else:
-            assert(False)
-elif NOTEST:
-    import csv
-    file_location = args_dict["rankings"] or "rankings.csv"
-    with open(file_location) as csvfile:
-        ranking = list(csv.reader(csvfile, delimiter=','))
-        for rowidx, row in enumerate(ranking):
-            for colidx, cell in enumerate(row):
-                ranking[rowidx][colidx] = int(ranking[rowidx][colidx])
-                print(cell, end=' ')
-            print("\n")
-    import time
-    # time.sleep(10)
-# Seed random?
+
+# read ranking files
+with open(ranking_location) as csvfile:
+    ranking_file = list(csv.reader(csvfile, delimiter=','))
+    for rowidx, row in enumerate(ranking_file):
+        for colidx, cell in enumerate(row):
+            ranking[rowidx][colidx] = int(ranking[rowidx][colidx])
+            print(cell, end=' ')
+        print("\n")
+
+
 def is_valid_grouping(grouping):
     # number of groups must be correct
     groups_cor = len(grouping) == NUM_GROUPS
@@ -126,7 +105,7 @@ def is_valid_grouping(grouping):
 
 # Gets the list of participant numbers and randomizes splitting them up
 # into groups
-def generateRandomGrouping():
+def generate_random_grouping():
     participants = [i for i in range(NUM_PARTICIPANTS)]
     random.shuffle(participants)
     idx = 0
@@ -140,25 +119,24 @@ def generateRandomGrouping():
         grouping.append(group)
     return grouping
 
+
 # Generate an initial list of of groupings by randomly creating them
-
-
-def generateInitialPopulation(population_size):
-    population = []
+def generate_initial_population(population_size):
+    init_population = []
     for i in range(population_size):
-        population.append(generateRandomGrouping())
-    return population
+        init_population.append(generate_random_grouping())
+    return init_population
 
 
-def print_population(population):
-    for p in population:
+def print_population(p_population):
+    for p in p_population:
         print(p)
 
 
-def print_ranking(ranking):
+def print_ranking(p_ranking):
     rank_source = 0
     rank_target = 0
-    for row in ranking:
+    for row in p_ranking:
         rank_target = 0
         for col in row:
             print(str(rank_source) + " -> " +
@@ -167,8 +145,9 @@ def print_ranking(ranking):
         print("------------")
         rank_source += 1
 
+
+# TODO implement new fitness function
 # Given a single group in a grouping, evaluate that group's fitness
-# TODO: Don't use sum only! Use sum only if relationship is not asymmmetricalgg
 def group_fitness(group):
     group_fitness_score = 0
     # All-pairs sum of rankings
@@ -186,6 +165,7 @@ def fitness(grouping):
         fitness_score += group_fitness(group)
     return fitness_score
 
+
 # We will select some number of parents to produce the next generation of offspring
 # Modifies the population_with_fitness param, cannot be used after
 def select_parents_to_breed(sorted_population_with_fitness):
@@ -200,10 +180,11 @@ def select_parents_to_breed(sorted_population_with_fitness):
     # Select the rest of the mating pool by random chance
     # TODO: This needs to be a weighted sample!
     selected_parents.extend(random.sample(sorted_population_with_fitness, NUM_REST_PARENTS))
-    #print("Selected parents")
-    #print_population(selected_parents)
+    # print("Selected parents")
+    # print_population(selected_parents)
     # Don't return the weights
     return list(map(lambda x: x[0], selected_parents))
+
 
 # Potentially the most important function
 # Given two sets of groupings - we need to produce a new valid grouping
@@ -212,7 +193,7 @@ def breed_two_parents(p1, p2):
     # Custom copy and append (deepcopy profiling says it takes up the majority of runtime)
     group_pool = [list(x) for x in p1] + [list(x) for x in p2] 
     child = random.sample(group_pool, NUM_GROUPS)
-    #print("Initial child of " + str(p1) + " and " + str(p2) + ": \n" + str(child))
+    # print("Initial child of " + str(p1) + " and " + str(p2) + ": \n" + str(child))
 
     # We need to "correct" the child so that it can be a valid group
     # This also introduces a form of mutation
@@ -232,8 +213,8 @@ def breed_two_parents(p1, p2):
     # Flatten list
     repeat_locations = list(itertools.chain.from_iterable(repeat_locations))
 
-    #print("Missing participants: " + str(missing_participants))
-    #print("Repeat locations to replace: " + str(repeat_locations))
+    # print("Missing participants: " + str(missing_participants))
+    # print("Repeat locations to replace: " + str(repeat_locations))
 
     # Now we insert the missing participants into a random repeat location
     random_locations_to_replace = random.sample(repeat_locations, len(missing_participants))
@@ -241,8 +222,9 @@ def breed_two_parents(p1, p2):
         groupidx, memberidx = random_locations_to_replace[idx]
         #print("Replacing val at : " + str(random_locations_to_replace[idx]) + " with " + str(missing_participant))
         child[groupidx][memberidx] = missing_participant
-    #print("Final child: " + str(child))
+    # print("Final child: " + str(child))
     return child
+
 
 def breed(parents):
     children = []
@@ -252,10 +234,11 @@ def breed(parents):
     for i in range(NUM_CHILDREN):
         child = breed_two_parents(randomized_parents[i % len(randomized_parents)], randomized_parents[(i + 1) % len(randomized_parents)])
         children.append(child)
-        #print("Got child: " + str(child))
-        #print("Children: " + str(children))
-        #print()
+        # print("Got child: " + str(child))
+        # print("Children: " + str(children))
+        # print()
     return children
+
 
 def mutate(population):
     for grouping in population:
@@ -275,12 +258,11 @@ def mutate(population):
                 grouping[group_idx2][participant_idx2] = temp
 
 
-
-
 def create_new_halloffame(old_hof, sorted_population_with_fitness):
     old_hof.extend(sorted_population_with_fitness[-HALL_OF_FAME_SIZE:])
     old_hof.sort(key=lambda x: x[1])
     return old_hof[-HALL_OF_FAME_SIZE:]
+
 
 def exit_handler(sig, frame):
         print("\nEvolution complete or interrupted. \n")
@@ -301,21 +283,16 @@ def exit_handler(sig, frame):
             plt.show()
         sys.exit(0)
 
+
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, exit_handler)
 
-    population = generateInitialPopulation(POPULATION_SIZE)
+    population = generate_initial_population(POPULATION_SIZE)
     print()
     print("Initial population:")
     # print_population(population)
     print("Ranking:")
     print(ranking)
-
-
-    #test_fitness = list(map(lambda gs: (gs, fitness(gs)),[[[11, 2, 20], [1, 25, 15], [8, 19, 23], [22, 12, 16], [26, 14, 13], [18, 21, 17], [5, 3, 9], [0, 7, 10], [4, 24, 6]]]))
-    #print("TEST FITNESS")
-    #print(test_fitness)
-    #sys.exit(0)
 
     # Set up initial state for generations
     generation = 0
@@ -369,7 +346,7 @@ if __name__ == "__main__":
             assert(all(map(is_valid_grouping, new_population)))
         else:
             # Bruteforce - no mutation
-            population = generateInitialPopulation(POPULATION_SIZE);
+            population = generate_initial_population(POPULATION_SIZE);
         
         # Just a check to make sure all of the new generation are valid groups
 

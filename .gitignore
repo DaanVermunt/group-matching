@@ -1,3 +1,6 @@
 *.pyc
 *.png
 profiling/
+.idea/*
+.idea
+
