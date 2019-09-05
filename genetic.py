@@ -10,7 +10,6 @@ import random
 import itertools
 import copy
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 from time import localtime, strftime
 import signal
 import sys
@@ -60,7 +59,8 @@ NUM_CHILDREN = POPULATION_SIZE - NUM_ELITISM - NUM_REST_PARENTS
 POSITIVE_WEIGHT = args_dict['positiveweight'] or 100
 NEGATIVE_WEIGHT = args_dict['negativeweight'] or -1000
 MUTATION_CHANCE = args_dict['mutationchance'] or 0.1
-MUTATION_NUM_SWAPS = args_dict['mutationswaps'] or 1#int(NUM_PARTICIPANTS / 5)
+# int(NUM_PARTICIPANTS / 5)
+MUTATION_NUM_SWAPS = args_dict['mutationswaps'] or 1
 HALL_OF_FAME_SIZE = args_dict['numhalloffame'] or 5
 
 # Printing params
@@ -220,7 +220,7 @@ def breed_two_parents(p1, p2):
     random_locations_to_replace = random.sample(repeat_locations, len(missing_participants))
     for idx, missing_participant in enumerate(missing_participants):
         groupidx, memberidx = random_locations_to_replace[idx]
-        #print("Replacing val at : " + str(random_locations_to_replace[idx]) + " with " + str(missing_participant))
+        # print("Replacing val at : " + str(random_locations_to_replace[idx]) + " with " + str(missing_participant))
         child[groupidx][memberidx] = missing_participant
     # print("Final child: " + str(child))
     return child
@@ -266,8 +266,8 @@ def create_new_halloffame(old_hof, sorted_population_with_fitness):
 
 def exit_handler(sig, frame):
         print("\nEvolution complete or interrupted. \n")
-        #print("\n----- Final Hall Of Fame ----- ")
-        #print_population(hall_of_fame)
+        # print("\n----- Final Hall Of Fame ----- ")
+        # print_population(hall_of_fame)
 
         # Draw final results
         fig = plt.figure(figsize=(8, 6))
